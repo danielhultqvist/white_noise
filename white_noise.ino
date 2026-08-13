@@ -3,8 +3,6 @@
 #include "esp_sleep.h"
 #include "driver/gpio.h"
 
-struct Note;
-
 // --- Pin Definitions---
 #define PIN_ROT_CLK   2
 #define PIN_ROT_DT    7
@@ -29,6 +27,9 @@ struct Note;
 #define HISS_LP_COEF     0.20f
 #define HISS_GAIN        1.1f
 #define DC_BLOCK_COEF    0.995f
+
+// --- General state ---
+#define HOLD_TIME 1500
 
 enum SeaState {
     SEA_CALM = 0,
@@ -122,6 +123,7 @@ void IRAM_ATTR encoderISR() {
 unsigned long buttonPressStartTime = 0;
 bool buttonIsPressed = false;
 unsigned long lastButtonCheckMs = 0;
+bool suppressButtonUntilRelease = false;
 
 void enterDeepSleep() {
     Serial.println(">>> Turning OFF (Entering Deep Sleep) <<<");
@@ -278,102 +280,31 @@ void processAudio() {
     i2s_write(I2S_PORT, buffer, sizeof(buffer), &bytes_written, portMAX_DELAY);
 }
 
-// --- Startup Tunes ---
-struct Note {
-    float freq;
-    float dur;
-};
-
-const Note tune1[] = {
-    {261.63f, 0.25f}, {293.66f, 0.25f}, {329.63f, 0.25f}, {349.23f, 0.25f},
-    {392.00f, 0.25f}, {440.00f, 0.25f}, {493.88f, 0.25f}, {523.25f, 0.25f}
-};
-
-const Note tune2[] = {
-    {261.63f, 0.30f}, {329.63f, 0.30f}, {392.00f, 0.30f}, {523.25f, 0.30f},
-    {392.00f, 0.30f}, {329.63f, 0.30f}, {261.63f, 0.20f}
-};
-
-const Note tune3[] = {
-    {392.00f, 0.20f}, {523.25f, 0.20f}, {659.25f, 0.20f}, {783.99f, 0.20f},
-    {659.25f, 0.20f}, {523.25f, 0.20f}, {392.00f, 0.20f}, {329.63f, 0.20f},
-    {392.00f, 0.20f}, {523.25f, 0.20f}
-};
-
-void playTune(const Note *notes, int count) {
-    const float tuneVol = 0.10f;
-    const float attack = 0.010f;
-    const float release = 0.030f;
-    int16_t buffer[DMA_BUF_LEN];
-    size_t bytes_written;
-
-    for (int noteIndex = 0; noteIndex < count; noteIndex++) {
-        float freq = notes[noteIndex].freq;
-        unsigned long totalSamples = (unsigned long)(notes[noteIndex].dur * (float)SAMPLE_RATE);
-        float phaseInc = 2.0f * PI * freq / (float)SAMPLE_RATE;
-        float phase = 0.0f;
-        unsigned long attackSamples = (unsigned long)(attack * SAMPLE_RATE);
-        unsigned long relSamples = (unsigned long)(release * SAMPLE_RATE);
-        unsigned long produced = 0;
-
-        while (produced < totalSamples) {
-            int chunk = (totalSamples - produced < DMA_BUF_LEN) ? (int)(totalSamples - produced) : DMA_BUF_LEN;
-            for (int i = 0; i < chunk; i++) {
-                unsigned long sampleIndex = produced + i;
-                float env = 1.0f;
-                if (sampleIndex < attackSamples) env = (float)sampleIndex / (float)attackSamples;
-                unsigned long relStart = (relSamples < totalSamples) ? (totalSamples - relSamples) : 0;
-                if (sampleIndex > relStart) {
-                    float releaseEnv = (float)(totalSamples - sampleIndex) / (float)relSamples;
-                    if (releaseEnv < 0.0f) releaseEnv = 0.0f;
-                    env = (env < releaseEnv) ? env : releaseEnv;
-                }
-                float sample = sinf(phase) * env * tuneVol;
-                buffer[i] = (int16_t)(sample * 32767.0f);
-                phase += phaseInc;
-                if (phase >= 2.0f * PI) phase -= 2.0f * PI;
-            }
-            i2s_write(I2S_PORT, buffer, chunk * 2, &bytes_written, portMAX_DELAY);
-            produced += chunk;
-        }
-        delay(40);
-    }
-}
-
-void playStartupTunes() {
-    Serial.println(">>> Playing startup tunes <<<");
-    playTune(tune1, sizeof(tune1) / sizeof(tune1[0]));
-    delay(200);
-    playTune(tune2, sizeof(tune2) / sizeof(tune2[0]));
-    delay(200);
-    playTune(tune3, sizeof(tune3) / sizeof(tune3[0]));
-    Serial.println(">>> Starting ocean noise <<<");
-}
-
 void checkTurnOnCondition() {
     pinMode(PIN_ROT_SW, INPUT_PULLUP);
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
     if (wakeup_reason == ESP_SLEEP_WAKEUP_GPIO) {
-        Serial.println("Woken up by button press. Checking 3s hold...");
+        Serial.println("Woken up by button press. Checking hold...");
         unsigned long start = millis();
-        bool heldThreeSec = false;
+        bool heldOneSec = false;
 
         while (digitalRead(PIN_ROT_SW) == LOW) {
-            if (millis() - start >= 3000) {
-                heldThreeSec = true;
+            if (millis() - start >= HOLD_TIME) {
+                heldOneSec = true;
                 break;
             }
             delay(10);
         }
 
-        if (!heldThreeSec) {
-            Serial.println("Button released early (< 3s). Returning to sleep.");
+        if (!heldOneSec) {
+            Serial.println("Button released early. Returning to sleep.");
             enterDeepSleep();
         }
-        Serial.println(">>> 3s Hold confirmed! Turning ON <<<");
+        Serial.println(">>> Hold confirmed! Turning ON <<<");
+        suppressButtonUntilRelease = true;
     } else {
-        Serial.println("Cold boot detected. Entering sleep until 3s button press.");
+        Serial.println("Cold boot detected. Entering sleep until button press.");
         enterDeepSleep();
     }
 }
@@ -400,7 +331,6 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(PIN_ROT_DT), encoderISR, CHANGE);
 
     initI2S();
-    playStartupTunes();
     nextCrestMs = millis() + 1500;   // grace before the first crest
     Serial.println("Ocean Noise Machine Active! Starting Volume: 5%");
 }
@@ -436,12 +366,18 @@ void loop() {
         lastButtonCheckMs = now;
         int swState = digitalRead(PIN_ROT_SW);
 
-        if (swState == LOW && !buttonIsPressed) {
+        if (suppressButtonUntilRelease) {
+            if (swState == HIGH) suppressButtonUntilRelease = false;
+        }
+        else if (swState == LOW && !buttonIsPressed) {
             buttonIsPressed = true;
             buttonPressStartTime = millis();
         } 
         else if (swState == LOW && buttonIsPressed) {
-            if (millis() - buttonPressStartTime >= 3000) {
+            if (millis() - buttonPressStartTime >= HOLD_TIME) {
+                while (digitalRead(PIN_ROT_SW) == LOW) {
+                    delay(10);
+                }
                 enterDeepSleep();
             }
         } 
@@ -449,7 +385,7 @@ void loop() {
             unsigned long pressDuration = millis() - buttonPressStartTime;
             buttonIsPressed = false;
 
-            if (pressDuration > 50 && pressDuration < 1000) {
+            if (pressDuration > 50 && pressDuration < HOLD_TIME) {
                 currentSeaState = (currentSeaState + 1) % SEA_COUNT;
                 Serial.print("Switched Sea State to: ");
                 if (currentSeaState == SEA_CALM)   Serial.println("CALM");

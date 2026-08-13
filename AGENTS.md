@@ -37,7 +37,7 @@ Requires the `arduino-cli` core `esp32:esp32:esp32c3` to be installed. No extern
 
 ## Runtime Behavior
 
-- **Power on:** The device boots directly into deep sleep. Press and hold the encoder push switch for at least 3 seconds to wake and start playback. A shorter press returns it to deep sleep.
+- **Power on:** The device boots directly into deep sleep. Press and hold the encoder push switch for at least 1 second to wake and start playback. A shorter press returns it to deep sleep.
 - **Power off:** While running, hold the push switch for 3 seconds to re-enter deep sleep.
 - **Volume:** Rotate the encoder. Each EC11 detent (2 quadrature transitions) adjusts `currentVolume` by 0.05 (5%), clamped to [0.0, 1.0].
 - **Noise type:** Short press (< 1 s, with debounce) cycles the sea state: calm → normal → rough → calm. Each state retunes crest duration/arrival and band gains (see `ALGORITHM.md`).
