@@ -18,7 +18,7 @@
 | **Rotary Encoder** | **DT** (3-pin side, Pin 3) | **ESP32-C3** | **GPIO 1** | Quadrature Signal B | Software `INPUT_PULLUP` enabled |
 | **Rotary Encoder** | **SW** (2-pin side, Pin 1) | **ESP32-C3** | **GPIO 3** | Push Switch Signal | RTC GPIO pin used for deep sleep wakeup |
 | **Rotary Encoder** | **SW GND** (2-pin side, Pin 2)| **Rotary Encoder**| **GND** | Common Ground | Solder bridge to 3-pin center GND |
-| **MAX98357A Amp** | **VIN** | **ESP32-C3** | **5V / VBUS** | Amplifier Power | Connect to 5V rail for full 3W output |
+| **MAX98357A Amp** | **VIN** | **ESP32-C3** | **3V3** | Amplifier Power | Keeps amp powered on LiPo when USB is removed |
 | **MAX98357A Amp** | **GND** | **ESP32-C3** | **GND** | Power & Signal Ground | Common ground |
 | **MAX98357A Amp** | **BCLK** | **ESP32-C3** | **GPIO 4** | Bit Clock | I2S serial clock |
 | **MAX98357A Amp** | **LRC / WS** | **ESP32-C3** | **GPIO 5** | Word Select | Left/Right channel clock |
@@ -52,7 +52,7 @@ GPIO 0   GND   GPIO 1             GPIO 3   (Bridge to GND)
 ```
 ESP32-C3 Pin                       MAX98357A Module Pin
 +------------+                     +--------------------+
-|  5V / VBUS | ------------------> | VIN                |
+|       3V3  | ------------------> | VIN                |
 |        GND | ------------------> | GND                |
 |     GPIO 4 | ------------------> | BCLK               |
 |     GPIO 5 | ------------------> | LRC (WS)           |
@@ -64,7 +64,7 @@ ESP32-C3 Pin                       MAX98357A Module Pin
 [ Speaker +/- ]
 ```
 
-* **Power Rail:** Connect `VIN` to `5V` (or `VBUS` USB power). Running the amplifier off 3.3V will limit dynamic power and cause clipping at higher volume levels.
+* **Power Rail:** Connect `VIN` to `3V3` (the onboard LDO output). This keeps the amplifier powered when USB is removed and the device runs from the LiPo. The MAX98357A operates down to 2.5 V, so 3.3 V is within spec, though the lower rail limits peak output to ~1.4 W on a 4 Ω speaker and may clip at the loudest crests when `currentVolume` is near 1.0.
 * **Shutdown Pin (`SD`):** Must remain unconnected. An internal resistor pulls this line high to keep the output active. Pulling it to ground will mute the device.
 
 ---

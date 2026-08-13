@@ -21,10 +21,10 @@
 #define RUMBLE_LP_COEF   0.0347f
 #define RUMBLE_GAIN      4.0f
 #define SURF_HP_COEF     0.0479f
-#define SURF_LP_COEF     0.2097f
+#define SURF_LP_COEF     0.11f
 #define SURF_GAIN        2.0f
 #define HISS_HP_COEF     0.3875f
-#define HISS_LP_COEF     0.20f
+#define HISS_LP_COEF     0.08f
 #define HISS_GAIN        1.1f
 #define DC_BLOCK_COEF    0.995f
 
@@ -311,6 +311,7 @@ void checkTurnOnCondition() {
 
 void setup() {
     Serial.begin(115200);
+    Serial.setTxTimeoutMs(0);
     delay(500);
 
     // 1. Check power-on condition
@@ -350,10 +351,6 @@ void loop() {
         currentVolume += delta * 0.05f; // Adjust volume by 5% per detent
         if (currentVolume > 1.0f) currentVolume = 1.0f;
         if (currentVolume < 0.0f) currentVolume = 0.0f;
-
-        Serial.print("Volume: ");
-        Serial.print((int)(currentVolume * 100));
-        Serial.println("%");
     }
 
     // 3. Push Button Logic
