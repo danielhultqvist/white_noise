@@ -43,7 +43,7 @@ runs continuously (`rumbleLP`, `surfHP_lp`, `surfLP`, `hisLLP`, `hissLP2`).
 ### Rumble (background wash, ~180 Hz)
 ```
 rumbleLP += RUMBLE_LP_COEF  * (whiteNoise - rumbleLP)
-rumble    = rumbleLP * RUMBLE_GAIN        // RUMBLE_LP_COEF=0.0347, RUMBLE_GAIN=4.0
+rumble    = rumbleLP * RUMBLE_GAIN        // RUMBLE_LP_COEF=0.02, RUMBLE_GAIN=6.0
 ```
 A single low-pass. Gentle, always-present low swell.
 
@@ -51,8 +51,8 @@ A single low-pass. Gentle, always-present low swell.
 ```
 hpSurf    = whiteNoise - surfHP_lp
 surfHP_lp += SURF_HP_COEF * (whiteNoise - surfHP_lp)   // high-pass stage, SURF_HP_COEF=0.0479
-surfLP    += SURF_LP_COEF * (hpSurf   - surfLP)        // low-pass stage,  SURF_LP_COEF=0.11
-surf      = surfLP * SURF_GAIN                         // SURF_GAIN=2.0
+surfLP    += SURF_LP_COEF * (hpSurf   - surfLP)        // low-pass stage,  SURF_LP_COEF=0.14
+surf      = surfLP * SURF_GAIN                         // SURF_GAIN=0.6
 ```
 A high-pass followed by a low-pass = band-pass. This is the audible "wave" body.
 
@@ -60,8 +60,8 @@ A high-pass followed by a low-pass = band-pass. This is the audible "wave" body.
 ```
 hpHiss   = whiteNoise - hislLLP
 hissLP  += HISS_HP_COEF * (whiteNoise - hisLLP)        // high-pass, HISS_HP_COEF=0.3875
-hissLP2 += HISS_LP_COEF * (hpHiss   - hissLP2)        // soften top edge, HISS_LP_COEF=0.08
-hiss     = hisLLP2 * HISS_GAIN                        // HISS_GAIN=1.1
+hissLP2 += HISS_LP_COEF * (hpHiss   - hissLP2)        // soften top edge, HISS_LP_COEF=0.12
+hiss     = hisLLP2 * HISS_GAIN                        // HISS_GAIN=0.1
 ```
 High-pass then a second low-pass so the top end is rounded ("water, not sizzle").
 
@@ -93,9 +93,9 @@ envRumbleLP += 0.0040 * (whiteRumble - envRumbleLP)
 envSurfLP   += 0.0070 * (whiteSurf   - envSurfLP)
 envHissLP   += 0.0050 * (whiteHiss   - envHissLP)
 
-bedRumble = 0.30 + 0.15 * envRumbleLP      // ~0.15..0.45
-bedSurf   = 0.30 + 0.20 * envSurfLP        // ~0.10..0.50
-bedHiss   = 0.08 + 0.05 * envHissLP        // ~0.03..0.13
+bedRumble = 0.15 + 0.10 * envRumbleLP      // ~0.05..0.25
+bedSurf   = 0.12 + 0.10 * envSurfLP        // ~0.02..0.22
+bedHiss   = 0.03 + 0.03 * envHissLP        // ~0.00..0.06
 ```
 
 The non-zero floor guarantees the wash never drops out to silence. Low-passed
@@ -135,7 +135,7 @@ in [0, 1]:
 ```
 tRumble =  bedRumble                              * seaParams.rumble
 tSurf   = (bedSurf   + crestAmp * crestEnv  * 0.8) * seaParams.surf
-tHiss   = (bedHiss   + crestAmp * crestFoam      )  * seaParams.hiss
+tHiss   = (bedHiss   + crestAmp * crestFoam * 0.3)  * seaParams.hiss
 ```
 
 ### 2d. Crossfade smoothers
@@ -160,11 +160,12 @@ crest *duration*; `period2` is the mean crest *inter-arrival* (Poisson) interval
 
 | State        | period1 (s) | period2 (s) | rumble | surf | hiss |
 |--------------|-------------|-------------|--------|------|------|
-| `SEA_CALM`   | 9.0         | 14.5        | 0.55   | 0.55 | 0.18 |
-| `SEA_NORMAL` | 7.0         | 11.5        | 0.70   | 0.85 | 0.40 |
-| `SEA_ROUGH`  | 5.5         | 8.7         | 0.90   | 1.10 | 0.85 |
+| `SEA_CALM`   | 9.0         | 14.5        | 0.70   | 0.40 | 0.08 |
+| `SEA_NORMAL` | 7.0         | 11.5        | 0.80   | 0.60 | 0.18 |
+| `SEA_ROUGH`  | 5.5         | 8.7         | 1.00   | 0.80 | 0.35 |
 
-Rougher seas => shorter, more frequent, louder crests and more hiss.
+Rougher seas => shorter, more frequent, louder crests and slightly more hiss,
+though all sea states are tuned mellow (rumble-dominant) for bedside listening.
 
 ## 4. Output stage
 
@@ -181,14 +182,14 @@ i2s_write(...)
 
 | Constant         | Value  | Used by                     |
 |------------------|--------|------------------------------|
-| `RUMBLE_LP_COEF` | 0.0347 | rumble low-pass              |
-| `RUMBLE_GAIN`    | 4.0    | rumble output gain           |
+| `RUMBLE_LP_COEF` | 0.02   | rumble low-pass              |
+| `RUMBLE_GAIN`    | 6.0    | rumble output gain           |
 | `SURF_HP_COEF`   | 0.0479 | surf high-pass stage         |
-| `SURF_LP_COEF`   | 0.11   | surf low-pass stage          |
-| `SURF_GAIN`      | 2.0    | surf output gain             |
+| `SURF_LP_COEF`   | 0.14   | surf low-pass stage          |
+| `SURF_GAIN`      | 0.6    | surf output gain             |
 | `HISS_HP_COEF`   | 0.3875 | hiss high-pass stage         |
-| `HISS_LP_COEF`   | 0.08   | hiss top-edge softening LP   |
-| `HISS_GAIN`      | 1.1    | hiss output gain             |
+| `HISS_LP_COEF`   | 0.12   | hiss top-edge softening LP   |
+| `HISS_GAIN`      | 0.1    | hiss output gain             |
 | `DC_BLOCK_COEF`  | 0.995  | DC-blocking filter pole      |
 
 The three bed-envelope LP coefficients (0.0040 / 0.0070 / 0.0050) and the four

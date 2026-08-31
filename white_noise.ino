@@ -18,14 +18,14 @@
 #define DMA_BUF_LEN   256
 
 // --- Ocean Wave Synthesizer Tuning ---
-#define RUMBLE_LP_COEF   0.0347f
-#define RUMBLE_GAIN      4.0f
+#define RUMBLE_LP_COEF   0.02f
+#define RUMBLE_GAIN      6.0f
 #define SURF_HP_COEF     0.0479f
-#define SURF_LP_COEF     0.11f
-#define SURF_GAIN        2.0f
+#define SURF_LP_COEF     0.14f
+#define SURF_GAIN        0.6f
 #define HISS_HP_COEF     0.3875f
-#define HISS_LP_COEF     0.08f
-#define HISS_GAIN        1.1f
+#define HISS_LP_COEF     0.12f
+#define HISS_GAIN        0.1f
 #define DC_BLOCK_COEF    0.995f
 
 // --- General state ---
@@ -47,9 +47,9 @@ struct SeaParams {
 };
 
 const SeaParams seaStates[SEA_COUNT] = {
-    {  9.0f, 14.5f, 0.55f, 0.55f, 0.18f },
-    {  7.0f, 11.5f, 0.70f, 0.85f, 0.40f },
-    {  5.5f,  8.7f, 0.90f, 1.10f, 0.85f }
+    {  9.0f, 14.5f, 0.70f, 0.40f, 0.08f },
+    {  7.0f, 11.5f, 0.80f, 0.60f, 0.18f },
+    {  5.5f,  8.7f, 1.00f, 0.80f, 0.35f }
 };
 
 volatile uint8_t currentSeaState = SEA_CALM;
@@ -214,9 +214,9 @@ void processAudio() {
 
     // Map [-1,1] random walks to bed amounts with a non-zero floor so the wash
     // never drops out completely.
-    float bedRumble = 0.30f + 0.15f * envRumbleLP;   // ~0.15..0.45
-    float bedSurf   = 0.30f + 0.20f * envSurfLP;     // ~0.10..0.50
-    float bedHiss   = 0.08f + 0.05f * envHissLP;     // ~0.03..0.13
+    float bedRumble = 0.15f + 0.10f * envRumbleLP;   // ~0.05..0.25
+    float bedSurf   = 0.12f + 0.10f * envSurfLP;     // ~0.02..0.22
+    float bedHiss   = 0.03f + 0.03f * envHissLP;     // ~0.00..0.06
 
     // --- Discrete crest (wave-arrival) scheduler ---
     // Triggered on an exponential interval around p.period2 so arrivals feel
@@ -259,7 +259,7 @@ void processAudio() {
 
     float tRumble = (bedRumble                          ) * seaParams.rumble;
     float tSurf   = (bedSurf   + crestAmp * crestEnv  * 0.8f) * seaParams.surf;
-    float tHiss   = (bedHiss   + crestAmp * crestFoam       ) * seaParams.hiss;
+    float tHiss   = (bedHiss   + crestAmp * crestFoam * 0.3f) * seaParams.hiss;
 
     // Crossfade band gains toward the target (smooths sea-state switches).
     smRumble += 0.04f * (tRumble - smRumble);
