@@ -22,7 +22,7 @@
 #define RUMBLE_GAIN      6.0f
 #define SURF_HP_COEF     0.0479f
 #define SURF_LP_COEF     0.14f
-#define SURF_GAIN        0.6f
+#define SURF_GAIN        0.5f
 #define HISS_HP_COEF     0.3875f
 #define HISS_LP_COEF     0.12f
 #define HISS_GAIN        0.1f
